@@ -70,7 +70,6 @@ class LayerLSTM(object):
         # self.current_step = 0
         self.step()
 
-
     def step(self):
         """
         Function: step(self)
@@ -89,10 +88,12 @@ class LayerLSTM(object):
         init_h = self.init_h
         init_c = self.init_c
 
+
         ##############################################
         ###             Define Weights             ###
         ##############################################
         # Define weight matrices and bias vectors.
+
         # Input gate.
         W_i = weight_variable([input_dim, hidden_dim])
         U_i = weight_variable([hidden_dim, hidden_dim])
@@ -113,20 +114,25 @@ class LayerLSTM(object):
         V_o = weight_variable([hidden_dim, hidden_dim])
 
 
-
         ##############################################
         ###          Compute Activations           ###
         ##############################################
         # We have to define expressions self.h and self.c
         # The initial h and c states are possibly placeholders.
-        ingate = tf.nn.sigmoid(tf.matmul(x, W_i) + \
-            tf.matmul(init_h, U_i) + b_i)
-        cgate = tf.nn.tanh(tf.matmul(x, W_c) + \
-            tf.matmul(init_h, U_c) + b_c)
-        fgate = tf.nn.sigmoid(tf.matmul(x, W_f) + \
-            tf.matmul(init_h, U_f) + b_f)
 
-        # We make a new c state and attach to self.
+        # Input gate activation.
+        ingate = tf.nn.sigmoid(
+            tf.matmul(x, W_i) + tf.matmul(init_h, U_i) + b_i
+            )
+        # Candidate gate activation.
+        cgate = tf.nn.tanh(
+            tf.matmul(x, W_c) +  tf.matmul(init_h, U_c) + b_c
+            )
+        # Forget gate activation.
+        fgate = tf.nn.sigmoid(
+            tf.matmul(x, W_f) + tf.matmul(init_h, U_f) + b_f
+            )
+        # We make a new candidate state and attach to self.
         self.c = tf.mul(ingate, cgate) + tf.mul(fgate, init_c)
 
         # Use the new c state to compute output gate activation.
