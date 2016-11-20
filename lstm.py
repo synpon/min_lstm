@@ -5,7 +5,8 @@
     Description: A minimal LSTM layer for use in TensorFlow networks.
 """
 import tensorflow as tf
-
+import numpy as np
+from pprint import pprint
 
 def weight_variable(shape):
     """
@@ -43,56 +44,39 @@ class LayerLSTM(object):
     Returns:
         None, but LayerLSTM.h and LayerLSTM.c are useful to pull out.
     """
-    def __init__(
-                 self,
-                 x, # Input to LSTM. Might be a placeholder, might not.
-                 init_c, # Initial C state of LSTM. Definite placeholder.
-                 init_h,
-                 hidden_dim
-                 ):
+    def __init__(self, xs, init_c, init_h):
         """
         Function: __init__(self, args)
         Args:
             All the args passed through to instantiate LayerLSTM.
         Returns:
-            None, but it does step the LSTM forward one, defining self.h and self.c
+            None
         """
-        # Pass in input and initial LSTM states.
-        self.x = x
+        self.xs = xs
         # Be sure not to assign init_c and init_h any values
-        # They may very well be placeholders.
+
         self.init_c = init_c
         self.init_h = init_h
         # Common parameters
-        self.input_dim = int(x.get_shape()[-1])
-        self.hidden_dim = hidden_dim
-        # Define counters.
-        # self.current_step = 0
-        self.step()
+        # input_dim = tf.shape(x)[-1]
+        # hidden_dim = tf.shape(init_c)[-1]
+        self.input_dim = xs.get_shape().as_list()[-1]
+        n_steps = xs.get_shape().as_list()[0]
+        self.hidden_dim = init_c.get_shape().as_list()[-1]
+        self.counter = 0
+        self.hs = []
+        self.cs = []
+        for k in range(n_steps):
+            self.step(tf.expand_dims(xs[k,:], 0))
+            self.hs.append(self.h)
+            self.cs.append(self.c)
+        self.H = tf.concat(0, self.hs)
+        self.C = tf.concat(0, self.cs)
 
-    def step(self):
-        """
-        Function: step(self)
-        Args:
-            self: The args attached to self are enough to step network forward
-                  through the LSTM layer.
-        Returns:
-            None: Just grab self.h and self.c from instance of LayerLSTM.
-        """
-        ##############################################
-        ###           Detatch Paramters            ###
-        ##############################################
+    def step(self, x):
         input_dim = self.input_dim
         hidden_dim = self.hidden_dim
-        x = self.x
-        init_h = self.init_h
-        init_c = self.init_c
 
-
-        ##############################################
-        ###             Define Weights             ###
-        ##############################################
-        # Define weight matrices and bias vectors.
 
         # Input gate.
         W_i = weight_variable([input_dim, hidden_dim])
@@ -120,24 +104,51 @@ class LayerLSTM(object):
         # We have to define expressions self.h and self.c
         # The initial h and c states are possibly placeholders.
 
+        W = tf.concat(1,[W_i, W_f, W_c, W_o])
+
+        U = tf.concat(1,[U_i, U_f, U_c, U_o])
+
+        B = tf.concat(0, [b_i, b_f, b_c, b_o])
+        if self.counter < 1:
+            H = tf.matmul(x, W) + tf.matmul(self.init_h, U) + B
+        else:
+            H = tf.matmul(x, W) + tf.matmul(self.h, U) + B
+
+
+        i, f, c, o = tf.split(1,4,H)
+
         # Input gate activation.
-        ingate = tf.nn.sigmoid(
-            tf.matmul(x, W_i) + tf.matmul(init_h, U_i) + b_i
-            )
-        # Candidate gate activation.
-        cgate = tf.nn.tanh(
-            tf.matmul(x, W_c) +  tf.matmul(init_h, U_c) + b_c
-            )
-        # Forget gate activation.
-        fgate = tf.nn.sigmoid(
-            tf.matmul(x, W_f) + tf.matmul(init_h, U_f) + b_f
-            )
-        # We make a new candidate state and attach to self.
-        self.c = tf.mul(ingate, cgate) + tf.mul(fgate, init_c)
+        igate = tf.nn.sigmoid(i)
+        fgate = tf.nn.sigmoid(f)
+        cgate = tf.nn.tanh(c)
+        if self.counter < 1:
+            self.c = tf.mul(igate, cgate) + tf.mul(fgate, self.init_c)
+        else:
+            self.c = tf.mul(igate, cgate) + tf.mul(fgate, self.c)
 
-        # Use the new c state to compute output gate activation.
-        ogate = tf.nn.sigmoid(tf.matmul(x, W_o) + tf.matmul(init_h, U_o) + \
-            tf.matmul(self.c, V_o) + b_o)
-
+        ogate = tf.nn.sigmoid(o + tf.matmul(self.c, V_o))
         # Compute a new value of h to expose to class.
         self.h = tf.mul(ogate, tf.nn.tanh(self.c))
+        self.counter += 1
+
+def test_LayerLSTM():
+    n_in = 400
+    n_hid = 40
+    n_steps = 25
+    xs = tf.placeholder(tf.float32, shape=[n_steps, n_in])
+    init_c = tf.placeholder(tf.float32, shape=[1,n_hid])
+    init_h = tf.placeholder(tf.float32, shape=[1,n_hid])
+    lstm = LayerLSTM(xs, init_c, init_h)
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+    feed_dict={lstm.init_c:np.random.rand(1,n_hid),
+               lstm.init_h:np.random.rand(1,n_hid),
+               lstm.xs:np.random.rand(n_steps,n_in)}
+    C, H = sess.run([lstm.H, lstm.C],feed_dict=feed_dict)
+    print(C)
+    print(H)
+    print(H.shape)
+
+
+if __name__ == "__main__":
+    test_LayerLSTM()
