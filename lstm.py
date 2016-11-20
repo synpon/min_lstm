@@ -99,10 +99,10 @@ class LayerLSTM(object):
 
 
         ##############################################
-        ###          Compute Activations           ###
+        ###         Concatenate Weights            ###
         ##############################################
-        # We have to define expressions self.h and self.c
-        # The initial h and c states are possibly placeholders.
+        # We concatenate the weights so we only do two
+        # matrix multiplies instead of eight.
 
         W = tf.concat(1,[W_i, W_f, W_c, W_o])
 
